@@ -44,10 +44,15 @@ class HoHoKhanClient(Client):
         self.download_semaphore = asyncio.Semaphore(settings.download_concurrency)
         self.afk_notice_cache = {}
 
-    async def start(self) -> HoHoKhanClient:
+    async def start(
+        self,
+        *,
+        use_qr: bool = False,
+        except_ids: list[int] | None = None,
+    ) -> HoHoKhanClient:
         await self.database.connect()
         try:
-            await super().start()
+            await super().start(use_qr=use_qr, except_ids=except_ids or [])
         except Exception:
             await self.database.close()
             raise
