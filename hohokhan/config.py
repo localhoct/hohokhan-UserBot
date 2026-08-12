@@ -49,6 +49,16 @@ def _optional_integer(name: str) -> int | None:
         raise ConfigurationError(f"{name} must be an integer") from exc
 
 
+def _optional_file(name: str) -> Path | None:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return None
+    path = Path(raw).expanduser().resolve()
+    if not path.is_file():
+        raise ConfigurationError(f"{name} must point to an existing file")
+    return path
+
+
 def _id_set(owner_id: int) -> frozenset[int]:
     values = {owner_id}
     raw = os.getenv("SUDO_USER_IDS", "")
@@ -83,6 +93,7 @@ class Settings:
     openweather_api_key: str | None
     media_archive_chat_id: int | None
     ytdlp_cookies_file: Path | None
+    ytdlp_sleep_interval_seconds: int
     log_level: str
 
     @classmethod
@@ -96,7 +107,6 @@ class Settings:
         default_temp_dir = str(Path(tempfile.gettempdir()) / "hohokhan")
         temp_dir = Path(os.getenv("TEMP_DIR", default_temp_dir)).expanduser().resolve()
         max_download_mb = _integer("MAX_DOWNLOAD_MB", 150)
-        cookie_value = os.getenv("YTDLP_COOKIES_FILE", "").strip()
 
         return cls(
             api_id=api_id,
@@ -116,6 +126,9 @@ class Settings:
             rate_limit_penalty_seconds=_integer("RATE_LIMIT_PENALTY_SECONDS", 300),
             openweather_api_key=os.getenv("OPENWEATHER_API_KEY", "").strip() or None,
             media_archive_chat_id=_optional_integer("MEDIA_ARCHIVE_CHAT_ID"),
-            ytdlp_cookies_file=Path(cookie_value).expanduser().resolve() if cookie_value else None,
+            ytdlp_cookies_file=_optional_file("YTDLP_COOKIES_FILE"),
+            ytdlp_sleep_interval_seconds=_integer(
+                "YTDLP_SLEEP_INTERVAL_SECONDS", 5, minimum=0
+            ),
             log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
         )

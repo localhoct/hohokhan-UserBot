@@ -2,7 +2,7 @@ services:
   hohokhan:
     build:
       context: .
-    image: hohokhan:2.0
+    image: hohokhan:2.1.3
     container_name: hohokhan
     restart: unless-stopped
     init: true
@@ -20,4 +20,3 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-

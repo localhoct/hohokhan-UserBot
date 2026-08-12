@@ -7,8 +7,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import yt_dlp
+from yt_dlp.utils import DownloadError
 
 from hohokhan.config import Settings
+from hohokhan.media_errors import MediaDownloadError, download_error_message
 from hohokhan.utils.files import ensure_size
 
 logger = logging.getLogger(__name__)
@@ -71,8 +73,18 @@ class MediaDownloader:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
 
+    def _network_options(self) -> dict:
+        options: dict = {
+            "js_runtimes": {"node": {}},
+            "sleep_interval_requests": 1,
+        }
+        if self.settings.ytdlp_cookies_file:
+            options["cookiefile"] = str(self.settings.ytdlp_cookies_file)
+        return options
+
     def _common_options(self, output_dir: Path) -> dict:
         options: dict = {
+            **self._network_options(),
             "outtmpl": str(output_dir / "%(title).160B [%(id)s].%(ext)s"),
             "noplaylist": True,
             "quiet": True,
@@ -86,11 +98,26 @@ class MediaDownloader:
             "overwrites": False,
             "continuedl": False,
             "match_filter": self._match_filter,
-            "js_runtimes": {"node": {}},
         }
-        if self.settings.ytdlp_cookies_file:
-            options["cookiefile"] = str(self.settings.ytdlp_cookies_file)
+        sleep = self.settings.ytdlp_sleep_interval_seconds
+        if sleep:
+            options["sleep_interval"] = sleep
+            options["max_sleep_interval"] = sleep + 5
         return options
+
+    def _extract_info(
+        self, downloader: yt_dlp.YoutubeDL, target: str, *, download: bool
+    ) -> dict:
+        try:
+            return downloader.extract_info(target, download=download)
+        except DownloadError as exc:
+            logger.warning("yt-dlp could not retrieve the requested media")
+            raise MediaDownloadError(
+                download_error_message(
+                    exc,
+                    cookies_configured=self.settings.ytdlp_cookies_file is not None,
+                )
+            ) from None
 
     def _match_filter(self, info: dict, *, incomplete: bool = False) -> str | None:
         duration = info.get("duration")
@@ -135,7 +162,7 @@ class MediaDownloader:
             }
         )
         with yt_dlp.YoutubeDL(options) as downloader:
-            info = downloader.extract_info(target, download=True)
+            info = self._extract_info(downloader, target, download=True)
         if info.get("entries"):
             info = next((item for item in info["entries"] if item), None) or {}
         path = self._result_file(output_dir)
@@ -160,7 +187,7 @@ class MediaDownloader:
             }
         )
         with yt_dlp.YoutubeDL(options) as downloader:
-            info = downloader.extract_info(url, download=True)
+            info = self._extract_info(downloader, url, download=True)
         if info.get("entries"):
             info = next((item for item in info["entries"] if item), None) or {}
         path = self._result_file(output_dir)
@@ -175,6 +202,7 @@ class MediaDownloader:
 
     def _search_sync(self, query: str, limit: int) -> list[SearchResult]:
         options = {
+            **self._network_options(),
             "quiet": True,
             "no_warnings": True,
             "skip_download": True,
@@ -182,7 +210,9 @@ class MediaDownloader:
             "noplaylist": True,
         }
         with yt_dlp.YoutubeDL(options) as downloader:
-            data = downloader.extract_info(f"ytsearch{limit}:{query}", download=False)
+            data = self._extract_info(
+                downloader, f"ytsearch{limit}:{query}", download=False
+            )
         results: list[SearchResult] = []
         for item in data.get("entries") or []:
             if not item:

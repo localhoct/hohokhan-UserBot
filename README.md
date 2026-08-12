@@ -75,11 +75,67 @@ cp .env.example .env
 | `SUDO_USER_IDS` | خیر | شناسه‌های مجاز با ویرگول |
 | `OPENWEATHER_API_KEY` | خیر | فعال‌سازی آب‌وهوا |
 | `MEDIA_ARCHIVE_CHAT_ID` | خیر | کپی دانلود موفق در چت مشخص |
-| `YTDLP_COOKIES_FILE` | خیر | مسیر cookie برای محتوای نیازمند login |
+| `YTDLP_COOKIES_FILE` | در IP محدودشده | مسیر فایل محرمانه `cookies.txt` برای YouTube |
+| `YTDLP_SLEEP_INTERVAL_SECONDS` | خیر | فاصله تصادفی دانلود؛ پیش‌فرض ۵ تا ۱۰ ثانیه |
 | `MAX_DOWNLOAD_MB` | خیر | پیش‌فرض 150 MB |
 | `MAX_MEDIA_DURATION_SECONDS` | خیر | پیش‌فرض 1800 ثانیه |
 
 هرگز `.env`، `SESSION_STRING`، فایل `.session` یا cookie را Commit نکنید.
+
+### رفع خطای ضدربات YouTube
+
+پیام `Sign in to confirm you're not a bot` خرابی `yt-dlp` نیست؛ YouTube معمولاً
+IP سرور را محدود کرده و به یک نشست معتبر نیاز دارد. برای حل آن یک فایل
+`cookies.txt` با فرمت Netscape بسازید:
+
+1. در کامپیوتر شخصی یک پنجره Incognito/Private تازه باز کنید، با ترجیحاً یک حساب
+   جداگانه وارد YouTube شوید و در همان tab به
+   [`youtube.com/robots.txt`](https://www.youtube.com/robots.txt) بروید.
+2. فقط cookieهای دامنه YouTube را با یکی از روش‌های معرفی‌شده در
+   [راهنمای رسمی yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies)
+   به فرمت Netscape صادر کنید؛ سپس پنجره خصوصی را ببندید و آن نشست را دوباره باز
+   نکنید. YouTube cookie نشست‌های باز را مرتب عوض می‌کند.
+3. فایل را خارج از Git و به‌شکل امن به پوشه `data` سرور منتقل کنید:
+
+```bash
+# روی سرور
+mkdir -p ~/hohokhan-UserBot/data
+chmod 700 ~/hohokhan-UserBot/data
+
+# روی کامپیوتر شخصی؛ USER و SERVER را جایگزین کنید
+scp youtube-cookies.txt USER@SERVER:~/hohokhan-UserBot/data/youtube-cookies.txt
+
+# دوباره روی سرور؛ برای نصب مستقیم، مالک فایل باید همان کاربر اجراکننده باشد
+cd ~/hohokhan-UserBot
+chmod 600 data/youtube-cookies.txt
+```
+
+برای نصب مستقیم، مسیر واقعی سرور را در `.env` قرار دهید:
+
+```dotenv
+YTDLP_COOKIES_FILE=/root/hohokhan-UserBot/data/youtube-cookies.txt
+```
+
+برای Docker Compose یا Incus، پوشه `data` روی `/app/data` mount می‌شود:
+
+```dotenv
+YTDLP_COOKIES_FILE=/app/data/youtube-cookies.txt
+```
+
+image با کاربر محدود UID `10001` اجرا می‌شود؛ پیش از اجرای Docker مالکیت پوشه را
+تنظیم کنید:
+
+```bash
+sudo chown -R 10001:10001 data
+sudo chmod 600 data/youtube-cookies.txt
+```
+
+سپس ربات را restart کنید. اگر پیام «کوکی منقضی شده» دریافت شد، همین مراحل را با
+یک نشست خصوصی تازه تکرار کنید. cookie عملاً کلید ورود حساب است؛ آن را برای کسی
+نفرستید و به Git اضافه نکنید. استفاده مکرر از حساب ممکن است باعث محدودیت حساب شود؛
+توصیه‌های نرخ درخواست در
+[راهنمای رسمی YouTube در yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#youtube)
+را رعایت کنید.
 
 ## اجرا با Docker Compose
 
@@ -88,6 +144,8 @@ cp .env.example .env
 ```bash
 cp .env.example .env
 # API_ID و API_HASH را در .env وارد کنید
+mkdir -p data
+sudo chown -R 10001:10001 data
 docker compose run --rm --no-deps hohokhan python -m scripts.generate_session
 ```
 
@@ -99,7 +157,8 @@ docker compose logs -f --tail=100
 ```
 
 دیتابیس در `./data` نگهداری می‌شود؛ filesystem کانتینر read-only و `/tmp` از نوع
-tmpfs است.
+tmpfs است. فایل cookie نیز در صورت نیاز باید داخل همین `./data` قرار بگیرد، نه داخل
+image.
 
 ## نصب مستقیم
 
@@ -152,6 +211,10 @@ incus exec hohokhan -- cloud-init status --wait
 
 ```bash
 incus file push .env hohokhan/opt/hohokhan/source/.env --mode 600
+# در صورت نیاز به cookie یوتیوب:
+incus file push data/youtube-cookies.txt \
+  hohokhan/opt/hohokhan/source/data/youtube-cookies.txt \
+  --uid 10001 --gid 10001 --mode 600
 incus exec hohokhan -- bash -lc \
   'cd /opt/hohokhan/source && docker-compose up -d --build'
 incus exec hohokhan -- bash -lc \

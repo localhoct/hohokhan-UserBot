@@ -12,6 +12,8 @@ __pycache__
 *.sqlite*
 data
 downloads
+cookies.txt
+*cookies*.txt
 tests
 .idea
 .vscode

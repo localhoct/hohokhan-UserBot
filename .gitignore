@@ -11,6 +11,8 @@ __pycache__/
 *.sqlite3
 data/
 downloads/
+cookies.txt
+*cookies*.txt
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
