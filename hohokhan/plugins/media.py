@@ -10,7 +10,6 @@ from pyrogram.types import Message
 
 from hohokhan.filters import public_guard
 from hohokhan.services.media import MediaDownloader, is_supported_media_url
-from hohokhan.utils.files import safe_filename
 from hohokhan.utils.messages import command_argument, handler_errors
 
 logger = logging.getLogger(__name__)
@@ -43,7 +42,6 @@ async def download_music(client: Client, message: Message) -> None:
                     str(media.path),
                     title=media.title[:64],
                     performer=(media.uploader or "HoHoKhan")[:64],
-                    file_name=safe_filename(f"{media.title}.mp3"),
                     duration=media.duration or 0,
                 )
                 if sent:
@@ -90,7 +88,6 @@ async def download_video_url(client: Client, message: Message) -> None:
                     caption=f"<b>{html.escape(media.title)}</b>",
                     duration=media.duration or 0,
                     supports_streaming=True,
-                    file_name=safe_filename(media.path.name),
                 )
                 if sent:
                     await _archive(client, sent)
