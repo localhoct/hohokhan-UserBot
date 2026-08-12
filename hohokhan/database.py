@@ -6,7 +6,7 @@ import aiosqlite
 
 
 class Database:
-    """Small asynchronous SQLite store for replies and local block rules."""
+    """Asynchronous SQLite store for local, non-secret userbot state."""
 
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -34,6 +34,16 @@ class Database:
             CREATE TABLE IF NOT EXISTS blocked_users (
                 user_id INTEGER PRIMARY KEY,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS notes (
+                name TEXT PRIMARY KEY COLLATE NOCASE,
+                content TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS afk_state (
+                singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+                reason TEXT NOT NULL,
+                since TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
             """
         )
@@ -95,3 +105,62 @@ class Database:
             "SELECT 1 FROM blocked_users WHERE user_id = ?", (user_id,)
         )
         return await cursor.fetchone() is not None
+
+    async def set_note(self, name: str, content: str) -> None:
+        await self.connection.execute(
+            """
+            INSERT INTO notes(name, content) VALUES (?, ?)
+            ON CONFLICT(name) DO UPDATE SET
+                content=excluded.content,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (name.strip(), content.strip()),
+        )
+        await self.connection.commit()
+
+    async def get_note(self, name: str) -> str | None:
+        cursor = await self.connection.execute(
+            "SELECT content FROM notes WHERE name = ? COLLATE NOCASE", (name.strip(),)
+        )
+        row = await cursor.fetchone()
+        return str(row["content"]) if row else None
+
+    async def delete_note(self, name: str) -> bool:
+        cursor = await self.connection.execute(
+            "DELETE FROM notes WHERE name = ? COLLATE NOCASE", (name.strip(),)
+        )
+        await self.connection.commit()
+        return cursor.rowcount > 0
+
+    async def list_notes(self, limit: int = 200) -> list[str]:
+        cursor = await self.connection.execute(
+            "SELECT name FROM notes ORDER BY name COLLATE NOCASE LIMIT ?", (limit,)
+        )
+        rows = await cursor.fetchall()
+        return [str(row["name"]) for row in rows]
+
+    async def set_afk(self, reason: str) -> None:
+        await self.connection.execute(
+            """
+            INSERT INTO afk_state(singleton, reason) VALUES (1, ?)
+            ON CONFLICT(singleton) DO UPDATE SET
+                reason=excluded.reason,
+                since=CURRENT_TIMESTAMP
+            """,
+            (reason.strip(),),
+        )
+        await self.connection.commit()
+
+    async def get_afk(self) -> tuple[str, str] | None:
+        cursor = await self.connection.execute(
+            "SELECT reason, since FROM afk_state WHERE singleton = 1"
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return str(row["reason"]), str(row["since"])
+
+    async def clear_afk(self) -> bool:
+        cursor = await self.connection.execute("DELETE FROM afk_state WHERE singleton = 1")
+        await self.connection.commit()
+        return cursor.rowcount > 0

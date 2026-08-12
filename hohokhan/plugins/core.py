@@ -10,15 +10,9 @@ from pyrogram import Client, filters
 from pyrogram.types import Message
 
 from hohokhan.filters import owner_only, public_guard
-from hohokhan.texts import ANSWERS, HELP_TEXT
+from hohokhan.texts import ANSWERS
 from hohokhan.utils.files import human_bytes
 from hohokhan.utils.messages import handler_errors
-
-
-@Client.on_message((filters.regex(r"^(?:\.help|راهنما)$")) & public_guard)
-@handler_errors
-async def help_command(_: Client, message: Message) -> None:
-    await message.reply_text(HELP_TEXT, disable_web_page_preview=True)
 
 
 @Client.on_message(filters.regex(r"^هو\s*هو(?:\s*خان)?$") & public_guard)

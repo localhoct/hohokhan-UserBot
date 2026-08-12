@@ -16,6 +16,7 @@ class HoHoKhanClient(Client):
     database: Database
     rate_limiter: RateLimiter
     download_semaphore: asyncio.Semaphore
+    afk_notice_cache: dict[tuple[int, int], float]
 
     def __init__(self, settings: Settings) -> None:
         settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -41,6 +42,7 @@ class HoHoKhanClient(Client):
             settings.rate_limit_penalty_seconds,
         )
         self.download_semaphore = asyncio.Semaphore(settings.download_concurrency)
+        self.afk_notice_cache = {}
 
     async def start(self) -> HoHoKhanClient:
         await self.database.connect()
