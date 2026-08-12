@@ -11,7 +11,7 @@ from yt_dlp.utils import DownloadError
 
 from hohokhan.config import Settings
 from hohokhan.media_errors import MediaDownloadError, download_error_message
-from hohokhan.utils.files import ensure_size
+from hohokhan.utils.files import ensure_size, find_downloaded_media
 
 logger = logging.getLogger(__name__)
 
@@ -127,18 +127,6 @@ class MediaDownloader:
             return "live streams are not supported"
         return None
 
-    @staticmethod
-    def _result_file(output_dir: Path) -> Path:
-        ignored_suffixes = {".part", ".ytdl", ".json", ".jpg", ".jpeg", ".png", ".webp"}
-        candidates = [
-            path
-            for path in output_dir.iterdir()
-            if path.is_file() and path.suffix.lower() not in ignored_suffixes
-        ]
-        if not candidates:
-            raise FileNotFoundError("فایل خروجی ساخته نشد")
-        return max(candidates, key=lambda path: path.stat().st_mtime)
-
     def _download_audio_sync(self, query: str, output_dir: Path) -> DownloadedMedia:
         target = query.strip()
         if is_url(target):
@@ -165,7 +153,7 @@ class MediaDownloader:
             info = self._extract_info(downloader, target, download=True)
         if info.get("entries"):
             info = next((item for item in info["entries"] if item), None) or {}
-        path = self._result_file(output_dir)
+        path = find_downloaded_media(output_dir)
         ensure_size(path, self.settings.max_download_bytes)
         return DownloadedMedia(
             path=path,
@@ -190,7 +178,7 @@ class MediaDownloader:
             info = self._extract_info(downloader, url, download=True)
         if info.get("entries"):
             info = next((item for item in info["entries"] if item), None) or {}
-        path = self._result_file(output_dir)
+        path = find_downloaded_media(output_dir)
         ensure_size(path, self.settings.max_download_bytes)
         return DownloadedMedia(
             path=path,
