@@ -1,6 +1,7 @@
 # HoHoKhan UserBot
 
-بازنویسی ماژولار HoHoKhan به‌صورت Telegram **Userbot** با Pyrogram 2 و Python 3.11.
+بازنویسی ماژولار HoHoKhan به‌صورت Telegram **Userbot** با API سازگار Pyrogram و
+Python 3.11 تا 3.14.
 نسخه قدیمی تک‌فایلی، APIهای ازکارافتاده، dependencyهای بدون استفاده و credentialهای
 هاردکدشده حذف شده‌اند.
 
@@ -50,12 +51,13 @@ profile cloning، proxy scraping، endpointهای ناشناس محتوای بز
 
 - Telegram `API_ID` و `API_HASH` از [my.telegram.org/apps](https://my.telegram.org/apps)
 - شناسه عددی حساب مالک
-- Python 3.11، Node.js 24 و `ffmpeg`، `tesseract` و `libzbar` برای نصب مستقیم
+- Python 3.11 تا 3.14، Node.js 24 و `ffmpeg`، `tesseract` و `libzbar` برای نصب مستقیم
 - Docker یا Incus برای روش‌های کانتینری
 
-Pyrogram رسمی از سال 2023 نسخه جدیدی منتشر نکرده و آخرین نسخه رسمی آن `2.0.106` است؛
-برای بازتولیدپذیری همین نسخه pin شده است. دانلودر روی `yt-dlp 2026.7.4` قرار دارد و
-برای پشتیبانی کامل YouTube از `yt-dlp-ejs` و Node.js 24 استفاده می‌کند.
+پروژه از `Kurigram 2.2.24`، فورک maintained و drop-in-compatible پایروگرام، استفاده
+می‌کند؛ بنابراین importهای استاندارد `pyrogram` حفظ شده و Python 3.14 نیز پشتیبانی
+می‌شود. دانلودر روی `yt-dlp 2026.7.4` قرار دارد و برای پشتیبانی کامل YouTube از
+`yt-dlp-ejs` و Node.js 24 استفاده می‌کند.
 
 ## تنظیمات
 
@@ -103,10 +105,10 @@ tmpfs است.
 
 ```bash
 sudo apt update
-sudo apt install -y ffmpeg libzbar0 tesseract-ocr tesseract-ocr-fas python3.11-venv
+sudo apt install -y ffmpeg libzbar0 tesseract-ocr tesseract-ocr-fas python3-venv
 # Node.js باید نسخه 23.5 یا جدیدتر باشد (نسخه 24 پیشنهاد می‌شود).
 node --version
-python3.11 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
@@ -116,6 +118,22 @@ python -m hohokhan
 
 در اجرای تعاملی می‌توانید `SESSION_STRING` را خالی بگذارید تا Pyrogram فایل session
 را داخل `DATA_DIR` بسازد؛ آن فایل نیز محرمانه است.
+
+### ارتقا از نسخه دارای Pyrogram رسمی
+
+Pyrogram و Kurigram هر دو namespace یکسان `pyrogram` را نصب می‌کنند؛ آن‌ها را در یک
+virtualenv نگه ندارید. اگر قبلاً requirements قدیمی را نصب کرده‌اید، محیط را از نو
+بسازید:
+
+```bash
+deactivate 2>/dev/null || true
+rm -rf .venv
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python -m scripts.generate_session
+```
 
 ## اجرا با Incus
 

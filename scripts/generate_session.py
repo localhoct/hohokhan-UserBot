@@ -4,10 +4,15 @@ import asyncio
 import os
 
 from dotenv import load_dotenv
-from pyrogram import Client
+from hohokhan.runtime import ensure_runtime
 
 
 async def main() -> None:
+    ensure_runtime()
+    # Import after asyncio.run() has installed the running loop. Kurigram exports
+    # the Pyrogram-compatible package under the original `pyrogram` namespace.
+    from pyrogram import Client
+
     load_dotenv()
     try:
         api_id = int(os.environ["API_ID"])
@@ -23,4 +28,7 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except RuntimeError as exc:
+        raise SystemExit(f"Runtime error: {exc}") from exc

@@ -1,4 +1,4 @@
-Pyrogram==2.0.106
+Kurigram==2.2.24
 TgCrypto==1.2.5
 yt-dlp==2026.7.4
 yt-dlp-ejs==0.8.0

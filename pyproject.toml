@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hohokhan"
-version = "2.1.0"
+version = "2.1.1"
 description = "A modular Persian Telegram userbot built with Pyrogram"
 readme = "README.md"
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.11,<3.15"
 license = "MIT"
 authors = [{ name = "HoHoKhan contributors" }]
 dependencies = [
-  "Pyrogram==2.0.106",
+  "Kurigram==2.2.24",
   "TgCrypto==1.2.5",
   "yt-dlp==2026.7.4",
   "yt-dlp-ejs==0.8.0",
