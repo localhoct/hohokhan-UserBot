@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hohokhan"
+version = "2.0.0"
+description = "A modular Persian Telegram userbot built with Pyrogram"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = "MIT"
+authors = [{ name = "HoHoKhan contributors" }]
+dependencies = [
+  "Pyrogram==2.0.106",
+  "TgCrypto==1.2.5",
+  "yt-dlp==2026.7.4",
+  "yt-dlp-ejs==0.8.0",
+  "aiosqlite>=0.20,<1",
+  "httpx>=0.27,<1",
+  "Pillow>=10.4,<13",
+  "psutil>=5.9,<8",
+  "qrcode[pil]>=8,<9",
+  "pyzbar>=0.1.9,<1",
+  "pytesseract>=0.3.13,<1",
+  "python-dotenv>=1.0,<2",
+]
+
+[tool.setuptools.packages.find]
+include = ["hohokhan*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["S101"]

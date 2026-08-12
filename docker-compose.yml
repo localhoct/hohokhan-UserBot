@@ -1,0 +1,23 @@
+services:
+  hohokhan:
+    build:
+      context: .
+    image: hohokhan:2.0
+    container_name: hohokhan
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      DATA_DIR: /app/data
+      TEMP_DIR: /tmp/hohokhan
+    volumes:
+      - ./data:/app/data
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+

@@ -1,0 +1,26 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+
+packages:
+  - ca-certificates
+  - docker.io
+  - docker-compose
+  - git
+
+write_files:
+  - path: /etc/sysctl.d/99-hohokhan.conf
+    permissions: "0644"
+    content: |
+      fs.inotify.max_user_watches=524288
+
+runcmd:
+  - [systemctl, enable, --now, docker]
+  - [mkdir, -p, /opt/hohokhan]
+  - [git, clone, https://github.com/localhoct/hohokhan-UserBot.git, /opt/hohokhan/source]
+  - [mkdir, -p, /opt/hohokhan/source/data]
+  - [chown, -R, "10001:10001", /opt/hohokhan/source/data]
+
+final_message: >
+  HoHoKhan prerequisites are ready. Copy /opt/hohokhan/source/.env.example to .env,
+  add the secrets, then run docker-compose up -d in /opt/hohokhan/source.

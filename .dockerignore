@@ -1,0 +1,17 @@
+.git
+.github
+.env
+.venv
+build
+dist
+*.egg-info
+.ruff_cache
+__pycache__
+*.pyc
+*.session*
+*.sqlite*
+data
+downloads
+tests
+.idea
+.vscode
