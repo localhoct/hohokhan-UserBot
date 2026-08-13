@@ -11,7 +11,7 @@ __pycache__/
 *.sqlite3
 data/
 !hohokhan/data/
-!hohokhan/data/*.json
+!hohokhan/data/*.json.gz
 downloads/
 cookies.txt
 *cookies*.txt

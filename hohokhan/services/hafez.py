@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import json
 import secrets
 from dataclasses import dataclass
@@ -11,7 +12,9 @@ import httpx
 HAFEZ_SOURCE_URL = "https://divanhafez.com"
 HAFEZ_AUDIO_URL = f"{HAFEZ_SOURCE_URL}/app/r{{number}}.mp3"
 HAFEZ_GHAZAL_COUNT = 495
-HAFEZ_CORPUS_PATH = Path(__file__).resolve().parent.parent / "data" / "hafez_fortunes.json"
+HAFEZ_CORPUS_PATH = (
+    Path(__file__).resolve().parent.parent / "data" / "hafez_fortunes.json.gz"
+)
 USER_AGENT = "HoHoKhan/2.4 (https://github.com/localhoct/hohokhan-UserBot)"
 
 
@@ -27,8 +30,9 @@ def load_hafez_corpus(path: Path = HAFEZ_CORPUS_PATH) -> tuple[HafezFortune, ...
     """Load and validate the bundled corpus once per process."""
 
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        with gzip.open(path, mode="rt", encoding="utf-8") as source:
+            payload = json.load(source)
+    except (OSError, EOFError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError("داده داخلی فال حافظ قابل‌خواندن نیست") from exc
     if not isinstance(payload, list) or len(payload) != HAFEZ_GHAZAL_COUNT:
         raise ValueError("داده داخلی فال حافظ باید شامل دقیقاً ۴۹۵ غزل باشد")

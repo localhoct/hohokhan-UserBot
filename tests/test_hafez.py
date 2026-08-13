@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import json
 import sys
 import tempfile
@@ -24,16 +25,18 @@ class HafezCorpusTests(unittest.TestCase):
             for number in range(1, 496)
         ]
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "hafez.json"
-            path.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+            path = Path(directory) / "hafez.json.gz"
+            with gzip.open(path, "wt", encoding="utf-8") as output:
+                json.dump(rows, output, ensure_ascii=False)
             fortunes = load_hafez_corpus(path)
         self.assertEqual(len(fortunes), 495)
         self.assertEqual(fortunes[64].number, 65)
 
     def test_incomplete_local_corpus_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "hafez.json"
-            path.write_text("[]", encoding="utf-8")
+            path = Path(directory) / "hafez.json.gz"
+            with gzip.open(path, "wt", encoding="utf-8") as output:
+                output.write("[]")
             with self.assertRaises(ValueError):
                 load_hafez_corpus(path)
 
