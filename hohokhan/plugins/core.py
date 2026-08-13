@@ -1,24 +1,47 @@
 from __future__ import annotations
 
 import html
+import logging
 import platform
 import secrets
 from time import perf_counter
 
 import psutil
 from pyrogram import Client, filters
+from pyrogram.errors import RPCError
 from pyrogram.types import Message
 
 from hohokhan.filters import owner_only, public_guard
+from hohokhan.gratitude import should_react_to_thanks
 from hohokhan.texts import ANSWERS
 from hohokhan.utils.files import human_bytes
 from hohokhan.utils.messages import handler_errors
+
+logger = logging.getLogger(__name__)
 
 
 @Client.on_message(filters.regex(r"^هو\s*هو(?:\s*خان)?$") & public_guard)
 @handler_errors
 async def greeting(_: Client, message: Message) -> None:
     await message.reply_text(secrets.choice(ANSWERS))
+
+
+@Client.on_message(filters.text & ~filters.outgoing & public_guard, group=10)
+@handler_errors
+async def react_to_thanks(_: Client, message: Message) -> None:
+    """React only to thanks directed at HoHoKhan."""
+
+    text = (message.text or message.caption or "").strip()
+    replied = message.reply_to_message
+    replies_to_self = bool(replied and replied.outgoing)
+    if not should_react_to_thanks(text, replies_to_self=replies_to_self):
+        return
+
+    try:
+        await message.react("❤️")
+    except RPCError:
+        # Some chats disable reactions or do not allow the heart emoji.
+        logger.debug("Heart reaction is unavailable in chat %s", message.chat.id)
 
 
 @Client.on_message(filters.regex(r"^(?:\.?ping)$", flags=2) & public_guard)

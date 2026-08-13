@@ -2,7 +2,7 @@ services:
   hohokhan:
     build:
       context: .
-    image: hohokhan:2.1.5
+    image: hohokhan:2.1.6
     container_name: hohokhan
     restart: unless-stopped
     init: true
