@@ -1,21 +1,18 @@
 from __future__ import annotations
 
-import re
+import json
 import secrets
 from dataclasses import dataclass
-from html.parser import HTMLParser
+from functools import lru_cache
 from pathlib import Path
 
 import httpx
 
-HAFEZ_BASE_URL = "https://hafez.taktemp.com"
-HAFEZ_AUDIO_URLS = (
-    "https://divanhafez.com/app/r{number}.mp3",
-    f"{HAFEZ_BASE_URL}/music/{{number}}.mp3",
-)
+HAFEZ_SOURCE_URL = "https://divanhafez.com"
+HAFEZ_AUDIO_URL = f"{HAFEZ_SOURCE_URL}/app/r{{number}}.mp3"
 HAFEZ_GHAZAL_COUNT = 495
-USER_AGENT = "HoHoKhan/2.2 (https://github.com/localhoct/hohokhan-UserBot)"
-_REFERENCE_RE = re.compile(r"(?:fals|music)/([1-9]\d{0,2})\.(?:txt|mp3)", re.I)
+HAFEZ_CORPUS_PATH = Path(__file__).resolve().parent.parent / "data" / "hafez_fortunes.json"
+USER_AGENT = "HoHoKhan/2.4 (https://github.com/localhoct/hohokhan-UserBot)"
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,155 +22,71 @@ class HafezFortune:
     interpretation: str
 
 
-class _VisibleText(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.parts: list[str] = []
+@lru_cache(maxsize=1)
+def load_hafez_corpus(path: Path = HAFEZ_CORPUS_PATH) -> tuple[HafezFortune, ...]:
+    """Load and validate the bundled corpus once per process."""
 
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag in {"br", "p", "div", "li", "h1", "h2", "h3", "hr"}:
-            self.parts.append("\n")
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag in {"p", "div", "li", "h1", "h2", "h3"}:
-            self.parts.append("\n")
-
-    def handle_data(self, data: str) -> None:
-        self.parts.append(data)
-
-
-def decode_hafez_payload(content: bytes) -> str:
-    """Decode legacy endpoint bytes without trusting its incorrect HTTP charset."""
-
-    for encoding in ("utf-8-sig", "windows-1256"):
-        try:
-            return content.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-    return content.decode("utf-8", errors="replace")
-
-
-def _repair_mojibake(value: str) -> str:
-    """Repair UTF-8 text that was previously decoded as Latin-1/Windows-1252."""
-
-    if not any(marker in value for marker in ("Ø", "Ù", "Ú", "Û", "â€")):
-        return value
     try:
-        repaired = value.encode("cp1252").decode("utf-8")
-    except (UnicodeEncodeError, UnicodeDecodeError):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("داده داخلی فال حافظ قابل‌خواندن نیست") from exc
+    if not isinstance(payload, list) or len(payload) != HAFEZ_GHAZAL_COUNT:
+        raise ValueError("داده داخلی فال حافظ باید شامل دقیقاً ۴۹۵ غزل باشد")
+
+    fortunes: list[HafezFortune] = []
+    numbers: set[int] = set()
+    for row in payload:
+        if not isinstance(row, dict):
+            raise ValueError("ساختار داده داخلی فال حافظ معتبر نیست")
         try:
-            repaired = value.encode("latin-1").decode("utf-8")
-        except (UnicodeEncodeError, UnicodeDecodeError):
-            return value
-    return repaired
+            number = int(row["number"])
+            poem = str(row["poem"]).strip()
+            interpretation = str(row["interpretation"]).strip()
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("یکی از رکوردهای فال حافظ ناقص است") from exc
+        if not 1 <= number <= HAFEZ_GHAZAL_COUNT or number in numbers:
+            raise ValueError("شماره‌های داده داخلی فال حافظ معتبر یا یکتا نیستند")
+        if not poem or not interpretation:
+            raise ValueError("متن غزل یا تعبیر داخلی خالی است")
+        numbers.add(number)
+        fortunes.append(HafezFortune(number, poem, interpretation))
 
-
-def _plain_text(raw: str) -> str:
-    parser = _VisibleText()
-    parser.feed(_repair_mojibake(raw))
-    return "".join(parser.parts)
-
-
-def parse_hafez_fortune(raw: str, number: int) -> HafezFortune:
-    """Parse the text/HTML payload served by the legacy Hafez endpoint."""
-
-    visible = _plain_text(raw.replace("\ufeff", ""))
-    lines = [re.sub(r"\s+", " ", line).strip() for line in visible.splitlines()]
-    lines = [line for line in lines if line]
-    marker = next(
-        (
-            index
-            for index, line in enumerate(lines)
-            if line == "===" or "تعبیر" in line or "تفسير" in line
-        ),
-        None,
-    )
-    if marker is None:
-        raise ValueError("پاسخ سرویس فال ساختار قابل‌خواندن ندارد")
-
-    poem_lines = [
-        line
-        for line in lines[:marker]
-        if line not in {"غزل", "نمایش کامل غزل", "نمایش کامل غزل ↓"}
-    ]
-    interpretation_lines = [
-        line
-        for line in lines[marker + 1 :]
-        if line not in {"نمایش کامل تعبیر", "نمایش کامل تعبیر ↓"}
-    ]
-    if not poem_lines or not interpretation_lines:
-        raise ValueError("متن غزل یا تعبیر فال دریافت نشد")
-    return HafezFortune(
-        number=number,
-        poem="\n".join(poem_lines),
-        interpretation="\n".join(interpretation_lines),
-    )
-
-
-def _number_from_landing_page(raw: str) -> int | None:
-    match = _REFERENCE_RE.search(raw)
-    if not match:
-        return None
-    number = int(match.group(1))
-    return number if 1 <= number <= HAFEZ_GHAZAL_COUNT else None
+    if numbers != set(range(1, HAFEZ_GHAZAL_COUNT + 1)):
+        raise ValueError("برخی شماره‌های غزل در داده داخلی موجود نیستند")
+    return tuple(sorted(fortunes, key=lambda fortune: fortune.number))
 
 
 async def get_hafez_fortune() -> HafezFortune:
-    headers = {"User-Agent": USER_AGENT, "Accept": "text/html,text/plain"}
-    try:
-        async with httpx.AsyncClient(timeout=20, headers=headers, follow_redirects=True) as client:
-            landing = await client.get(f"{HAFEZ_BASE_URL}/fal.htm")
-            landing.raise_for_status()
-            preferred = _number_from_landing_page(decode_hafez_payload(landing.content))
-            numbers = [preferred] if preferred else []
-            while len(numbers) < 4:
-                candidate = secrets.randbelow(HAFEZ_GHAZAL_COUNT) + 1
-                if candidate not in numbers:
-                    numbers.append(candidate)
-            for number in numbers:
-                response = await client.get(f"{HAFEZ_BASE_URL}/fals/{number}.txt")
-                if response.status_code == 404:
-                    continue
-                response.raise_for_status()
-                if len(response.content) > 256 * 1024:
-                    raise ValueError("پاسخ سرویس فال بیش از حد بزرگ است")
-                return parse_hafez_fortune(decode_hafez_payload(response.content), number)
-    except httpx.HTTPError as exc:
-        raise ValueError("سرویس فال حافظ موقتاً در دسترس نیست") from exc
-    raise ValueError("فال معتبری از سرویس دریافت نشد")
+    """Return a random bundled fortune without network access."""
+
+    return secrets.choice(load_hafez_corpus())
 
 
 async def download_hafez_audio(number: int, destination: Path, maximum: int) -> Path:
     if not 1 <= number <= HAFEZ_GHAZAL_COUNT:
         raise ValueError("شماره غزل معتبر نیست")
     headers = {"User-Agent": USER_AGENT, "Accept": "audio/mpeg,audio/*"}
-    last_error: Exception | None = None
+    total = 0
     async with httpx.AsyncClient(timeout=60, headers=headers, follow_redirects=True) as client:
-        for template in HAFEZ_AUDIO_URLS:
-            total = 0
+        try:
+            async with client.stream("GET", HAFEZ_AUDIO_URL.format(number=number)) as response:
+                response.raise_for_status()
+                content_type = response.headers.get("content-type", "").casefold()
+                if content_type and not (
+                    content_type.startswith("audio/")
+                    or content_type.startswith("application/octet-stream")
+                ):
+                    raise ValueError("پاسخ سرویس، فایل صوتی معتبر نیست")
+                with destination.open("wb") as output:
+                    async for chunk in response.aiter_bytes():
+                        total += len(chunk)
+                        if total > maximum:
+                            raise ValueError("فایل صوتی غزل بیش از حد مجاز است")
+                        output.write(chunk)
+        except (httpx.HTTPError, ValueError) as exc:
             destination.unlink(missing_ok=True)
-            try:
-                async with client.stream(
-                    "GET", template.format(number=number)
-                ) as response:
-                    response.raise_for_status()
-                    content_type = response.headers.get("content-type", "").casefold()
-                    if content_type and not (
-                        content_type.startswith("audio/")
-                        or content_type.startswith("application/octet-stream")
-                    ):
-                        raise ValueError("پاسخ سرویس، فایل صوتی معتبر نیست")
-                    with destination.open("wb") as output:
-                        async for chunk in response.aiter_bytes():
-                            total += len(chunk)
-                            if total > maximum:
-                                raise ValueError("فایل صوتی غزل بیش از حد مجاز است")
-                            output.write(chunk)
-                if total:
-                    return destination
-                last_error = ValueError("فایل صوتی این غزل خالی است")
-            except (httpx.HTTPError, ValueError) as exc:
-                last_error = exc
-
-    destination.unlink(missing_ok=True)
-    raise ValueError("فایل صوتی این غزل در دسترس نیست") from last_error
+            raise ValueError("فایل صوتی این غزل در دسترس نیست") from exc
+    if not total:
+        destination.unlink(missing_ok=True)
+        raise ValueError("فایل صوتی این غزل خالی است")
+    return destination

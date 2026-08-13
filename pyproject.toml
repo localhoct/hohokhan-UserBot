@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hohokhan"
-version = "2.3.0"
+version = "2.4.0"
 description = "A modular Persian Telegram userbot built with Pyrogram"
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
@@ -28,6 +28,9 @@ dependencies = [
 [tool.setuptools.packages.find]
 include = ["hohokhan*"]
 
+[tool.setuptools.package-data]
+hohokhan = ["data/*.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
@@ -38,4 +41,3 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S"]
 ignore = ["S101"]
-
