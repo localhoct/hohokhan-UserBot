@@ -17,6 +17,7 @@ class HoHoKhanClient(Client):
     rate_limiter: RateLimiter
     download_semaphore: asyncio.Semaphore
     afk_notice_cache: dict[tuple[int, int], float]
+    hafez_fortunes: dict[tuple[int, int], int]
 
     def __init__(self, settings: Settings) -> None:
         settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -43,6 +44,7 @@ class HoHoKhanClient(Client):
         )
         self.download_semaphore = asyncio.Semaphore(settings.download_concurrency)
         self.afk_notice_cache = {}
+        self.hafez_fortunes = {}
 
     async def start(
         self,
@@ -82,3 +84,4 @@ def run() -> None:
     )
     logging.getLogger("pyrogram.session.session").setLevel(logging.WARNING)
     create_app(settings).run()
+

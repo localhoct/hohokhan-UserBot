@@ -17,6 +17,7 @@ from PIL import Image
 from pyrogram import Client, filters
 from pyrogram.types import Message
 
+from hohokhan.commands import weather_city
 from hohokhan.filters import public_guard
 from hohokhan.services.ovpn import replace_remote_hosts
 from hohokhan.services.web import current_weather, wikipedia_summary
@@ -35,13 +36,17 @@ async def wiki(_: Client, message: Message) -> None:
 
 
 @Client.on_message(
-    (filters.regex(r"^\.weather\s+.+", flags=2) | filters.regex(r"^آب و هوای\s+.+")) & public_guard
+    (
+        filters.regex(r"^\.weather\s+.+", flags=2)
+        | filters.regex(r"^(?:آب\s*و\s*هوای?|هوای?)\s+.+", flags=2)
+    )
+    & public_guard
 )
 @handler_errors
 async def weather(client: Client, message: Message) -> None:
     if not client.settings.openweather_api_key:
         raise ValueError("OPENWEATHER_API_KEY تنظیم نشده است")
-    city = command_argument(message)
+    city = weather_city(message.text or message.caption or "")
     data = await current_weather(city, client.settings.openweather_api_key)
     await message.reply_text(
         "\n".join(

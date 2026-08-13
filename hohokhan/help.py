@@ -35,6 +35,11 @@ CATEGORIES = (
             CommandHelp(".admins", "فهرست مدیران گروه"),
             CommandHelp("sysinfo", "مصرف CPU، RAM و دیسک", access="مالک/مجاز"),
             CommandHelp("هو هو خان", "دریافت پاسخ تصادفی کوتاه"),
+            CommandHelp("فال", "ارسال غزل و تعبیر تصادفی حافظ"),
+            CommandHelp("بخونش", "ارسال صوت آخرین فال حافظ شما"),
+            CommandHelp("تاس / TAS", "انداختن تاس تلگرام"),
+            CommandHelp("دارت / DART", "پرتاب دارت تلگرام"),
+            CommandHelp("بسکتبال / توپ", "پرتاب توپ بسکتبال تلگرام"),
         ),
     ),
     HelpCategory(
@@ -144,6 +149,12 @@ CATEGORIES = (
             CommandHelp(".leave", "خروج از چت", access="مالک/مجاز"),
             CommandHelp("قفل گروه / باز کردن گروه", "تغییر دسترسی ارسال اعضا", access="مالک/مجاز"),
             CommandHelp("block / unblock", "مسدود یا آزادکردن کاربر", access="مالک/مجاز"),
+            CommandHelp(
+                "هوهوخان بگو متن",
+                "پاسخ‌دادن با متن ربات به پیام ریپلای‌شده",
+                "هوهوخان بگو سلام",
+                "مدیر گروه",
+            ),
         ),
     ),
 )
@@ -190,3 +201,4 @@ def render_help(topic: str = "") -> tuple[str, ...]:
             return (render_category(category),)
     available = "، ".join(category.slug for category in CATEGORIES)
     raise ValueError(f"بخش راهنما پیدا نشد. بخش‌های موجود: {available}")
+

@@ -2,13 +2,59 @@ from __future__ import annotations
 
 import asyncio
 import html
+import logging
 
 from pyrogram import Client, filters
+from pyrogram.enums import ChatMemberStatus
+from pyrogram.errors import RPCError
 from pyrogram.types import ChatPermissions, Message
 
+from hohokhan.commands import admin_say_text
 from hohokhan.filters import owner_only
 from hohokhan.utils.messages import command_argument, handler_errors
 from hohokhan.utils.users import resolve_target_user
+
+logger = logging.getLogger(__name__)
+ADMIN_STATUSES = {ChatMemberStatus.OWNER, ChatMemberStatus.ADMINISTRATOR}
+
+
+@Client.on_message(
+    filters.group
+    & filters.regex(r"^هو\s*هو(?:\s*خان)?\s+بگو\s+.+", flags=2),
+    group=2,
+)
+@handler_errors
+async def admin_say(client: Client, message: Message) -> None:
+    """Relay an administrator's text as a reply to the selected message."""
+
+    sender = message.from_user
+    if sender is None:
+        return
+    member = await client.get_chat_member(message.chat.id, sender.id)
+    if member.status not in ADMIN_STATUSES:
+        return
+    replied = message.reply_to_message
+    if replied is None:
+        raise ValueError("این دستور را روی پیام شخص موردنظر ریپلای کنید")
+    text = admin_say_text(message.text or message.caption or "")
+    if not text:
+        raise ValueError("بعد از «هوهوخان بگو» متن را بنویسید")
+
+    await replied.reply_text(html.escape(text))
+
+    # Deletion is possible only when the userbot account is also a group admin.
+    try:
+        own_member = await client.get_chat_member(message.chat.id, "me")
+        privileges = own_member.privileges
+        can_delete = own_member.status == ChatMemberStatus.OWNER or (
+            own_member.status == ChatMemberStatus.ADMINISTRATOR
+            and privileges is not None
+            and privileges.can_delete_messages
+        )
+        if can_delete:
+            await message.delete()
+    except RPCError:
+        logger.debug("Could not delete admin relay command in chat %s", message.chat.id)
 
 
 @Client.on_message(filters.regex(r"^(?:del|حذف)$", flags=2) & owner_only)
@@ -157,3 +203,4 @@ async def unblock_user(client: Client, message: Message) -> None:
     await client.unblock_user(user.id)
     await client.database.set_blocked(user.id, False)
     await message.reply_text(f"{user.mention} از مسدودی خارج شد.")
+
