@@ -14,6 +14,12 @@ class HafezArchiveTests(unittest.TestCase):
             archived_ghazal_number("🪶 خوانش غزل حافظ\n#غزل_495 #حافظ"), 495
         )
 
+    def test_number_is_read_from_audio_metadata(self) -> None:
+        self.assertEqual(
+            archived_ghazal_number(None, "غزل شماره 143 حافظ", "audio.mp3"), 143
+        )
+        self.assertEqual(archived_ghazal_number(None, None, "hafez-28.mp3"), 28)
+
     def test_invalid_or_unrelated_caption_is_ignored(self) -> None:
         self.assertIsNone(archived_ghazal_number("#غزل_496"))
         self.assertIsNone(archived_ghazal_number("غزل حافظ"))

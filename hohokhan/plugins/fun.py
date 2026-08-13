@@ -10,6 +10,7 @@ from hohokhan.hafez_archive import (
     HAFEZ_AUDIO_CHAT_ID,
     HAFEZ_AUDIO_CHAT_USERNAME,
     find_archived_audio_message_id,
+    load_archive_index,
 )
 from hohokhan.services.hafez import (
     HafezFortune,
@@ -53,6 +54,10 @@ async def hafez_audio(client: Client, message: Message) -> None:
         raise ValueError("ابتدا بنویسید «فال» تا غزل شما مشخص شود")
 
     archive_message_id = client.hafez_audio_messages.get(number)
+    if archive_message_id is None and not client.hafez_audio_index_loaded:
+        client.hafez_audio_messages.update(await load_archive_index(client))
+        client.hafez_audio_index_loaded = True
+        archive_message_id = client.hafez_audio_messages.get(number)
     if archive_message_id is None:
         archive_message_id = await find_archived_audio_message_id(client, number)
         if archive_message_id is not None:

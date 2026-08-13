@@ -19,6 +19,7 @@ class HoHoKhanClient(Client):
     afk_notice_cache: dict[tuple[int, int], float]
     hafez_fortunes: dict[tuple[int, int], int]
     hafez_audio_messages: dict[int, int]
+    hafez_audio_index_loaded: bool
 
     def __init__(self, settings: Settings) -> None:
         settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -47,6 +48,7 @@ class HoHoKhanClient(Client):
         self.afk_notice_cache = {}
         self.hafez_fortunes = {}
         self.hafez_audio_messages = {}
+        self.hafez_audio_index_loaded = False
 
     async def start(
         self,
