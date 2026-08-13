@@ -9,6 +9,10 @@ from pathlib import Path
 import httpx
 
 HAFEZ_BASE_URL = "https://hafez.taktemp.com"
+HAFEZ_AUDIO_URLS = (
+    "https://divanhafez.com/app/r{number}.mp3",
+    f"{HAFEZ_BASE_URL}/music/{{number}}.mp3",
+)
 HAFEZ_GHAZAL_COUNT = 495
 USER_AGENT = "HoHoKhan/2.2 (https://github.com/localhoct/hohokhan-UserBot)"
 _REFERENCE_RE = re.compile(r"(?:fals|music)/([1-9]\d{0,2})\.(?:txt|mp3)", re.I)
@@ -143,30 +147,33 @@ async def download_hafez_audio(number: int, destination: Path, maximum: int) -> 
     if not 1 <= number <= HAFEZ_GHAZAL_COUNT:
         raise ValueError("شماره غزل معتبر نیست")
     headers = {"User-Agent": USER_AGENT, "Accept": "audio/mpeg,audio/*"}
-    total = 0
-    try:
-        async with httpx.AsyncClient(timeout=60, headers=headers, follow_redirects=True) as client:
-            async with client.stream(
-                "GET", f"{HAFEZ_BASE_URL}/music/{number}.mp3"
-            ) as response:
-                response.raise_for_status()
-                content_type = response.headers.get("content-type", "").casefold()
-                if content_type and not (
-                    content_type.startswith("audio/")
-                    or content_type.startswith("application/octet-stream")
-                ):
-                    raise ValueError("پاسخ سرویس، فایل صوتی معتبر نیست")
-                with destination.open("wb") as output:
-                    async for chunk in response.aiter_bytes():
-                        total += len(chunk)
-                        if total > maximum:
-                            raise ValueError("فایل صوتی غزل بیش از حد مجاز است")
-                        output.write(chunk)
-    except httpx.HTTPError as exc:
-        destination.unlink(missing_ok=True)
-        raise ValueError("فایل صوتی این غزل در دسترس نیست") from exc
-    if total == 0:
-        destination.unlink(missing_ok=True)
-        raise ValueError("فایل صوتی این غزل خالی است")
-    return destination
+    last_error: Exception | None = None
+    async with httpx.AsyncClient(timeout=60, headers=headers, follow_redirects=True) as client:
+        for template in HAFEZ_AUDIO_URLS:
+            total = 0
+            destination.unlink(missing_ok=True)
+            try:
+                async with client.stream(
+                    "GET", template.format(number=number)
+                ) as response:
+                    response.raise_for_status()
+                    content_type = response.headers.get("content-type", "").casefold()
+                    if content_type and not (
+                        content_type.startswith("audio/")
+                        or content_type.startswith("application/octet-stream")
+                    ):
+                        raise ValueError("پاسخ سرویس، فایل صوتی معتبر نیست")
+                    with destination.open("wb") as output:
+                        async for chunk in response.aiter_bytes():
+                            total += len(chunk)
+                            if total > maximum:
+                                raise ValueError("فایل صوتی غزل بیش از حد مجاز است")
+                            output.write(chunk)
+                if total:
+                    return destination
+                last_error = ValueError("فایل صوتی این غزل خالی است")
+            except (httpx.HTTPError, ValueError) as exc:
+                last_error = exc
 
+    destination.unlink(missing_ok=True)
+    raise ValueError("فایل صوتی این غزل در دسترس نیست") from last_error

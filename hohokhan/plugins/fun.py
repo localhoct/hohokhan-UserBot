@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import html
-from pathlib import Path
-from tempfile import TemporaryDirectory
 
 from pyrogram import Client, filters
 from pyrogram.types import Message
 
 from hohokhan.filters import public_guard
+from hohokhan.hafez_archive import (
+    HAFEZ_AUDIO_CHAT_ID,
+    HAFEZ_AUDIO_CHAT_USERNAME,
+    find_archived_audio_message_id,
+)
 from hohokhan.services.hafez import (
     HafezFortune,
-    download_hafez_audio,
     get_hafez_fortune,
 )
 from hohokhan.utils.messages import handler_errors
@@ -49,12 +51,24 @@ async def hafez_audio(client: Client, message: Message) -> None:
     number = client.hafez_fortunes.get((message.chat.id, user_id))
     if number is None:
         raise ValueError("ابتدا بنویسید «فال» تا غزل شما مشخص شود")
-    with TemporaryDirectory(dir=client.settings.temp_dir) as directory:
-        path = Path(directory) / f"hafez-{number}.mp3"
-        await download_hafez_audio(number, path, client.settings.max_download_bytes)
-        await message.reply_audio(
-            str(path), title=f"غزل شماره {number} حافظ", performer="خوانش غزل حافظ"
+
+    archive_message_id = client.hafez_audio_messages.get(number)
+    if archive_message_id is None:
+        archive_message_id = await find_archived_audio_message_id(client, number)
+        if archive_message_id is not None:
+            client.hafez_audio_messages[number] = archive_message_id
+    if archive_message_id is None:
+        raise ValueError(
+            "خوانش این غزل هنوز در آرشیو صوتی بارگذاری نشده است؛ "
+            f"آرشیو: @{HAFEZ_AUDIO_CHAT_USERNAME}"
         )
+
+    await client.copy_message(
+        chat_id=message.chat.id,
+        from_chat_id=HAFEZ_AUDIO_CHAT_ID,
+        message_id=archive_message_id,
+        reply_to_message_id=message.id,
+    )
 
 
 @Client.on_message(filters.regex(r"^(?:تاس|tas)$", flags=2) & public_guard)

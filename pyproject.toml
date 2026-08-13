@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hohokhan"
-version = "2.2.1"
+version = "2.3.0"
 description = "A modular Persian Telegram userbot built with Pyrogram"
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
@@ -38,5 +38,4 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S"]
 ignore = ["S101"]
-
 
