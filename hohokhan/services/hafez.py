@@ -38,9 +38,35 @@ class _VisibleText(HTMLParser):
         self.parts.append(data)
 
 
+def decode_hafez_payload(content: bytes) -> str:
+    """Decode legacy endpoint bytes without trusting its incorrect HTTP charset."""
+
+    for encoding in ("utf-8-sig", "windows-1256"):
+        try:
+            return content.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return content.decode("utf-8", errors="replace")
+
+
+def _repair_mojibake(value: str) -> str:
+    """Repair UTF-8 text that was previously decoded as Latin-1/Windows-1252."""
+
+    if not any(marker in value for marker in ("Ø", "Ù", "Ú", "Û", "â€")):
+        return value
+    try:
+        repaired = value.encode("cp1252").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        try:
+            repaired = value.encode("latin-1").decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            return value
+    return repaired
+
+
 def _plain_text(raw: str) -> str:
     parser = _VisibleText()
-    parser.feed(raw)
+    parser.feed(_repair_mojibake(raw))
     return "".join(parser.parts)
 
 
@@ -51,7 +77,11 @@ def parse_hafez_fortune(raw: str, number: int) -> HafezFortune:
     lines = [re.sub(r"\s+", " ", line).strip() for line in visible.splitlines()]
     lines = [line for line in lines if line]
     marker = next(
-        (index for index, line in enumerate(lines) if "تعبیر" in line or "تفسير" in line),
+        (
+            index
+            for index, line in enumerate(lines)
+            if line == "===" or "تعبیر" in line or "تفسير" in line
+        ),
         None,
     )
     if marker is None:
@@ -90,7 +120,7 @@ async def get_hafez_fortune() -> HafezFortune:
         async with httpx.AsyncClient(timeout=20, headers=headers, follow_redirects=True) as client:
             landing = await client.get(f"{HAFEZ_BASE_URL}/fal.htm")
             landing.raise_for_status()
-            preferred = _number_from_landing_page(landing.text)
+            preferred = _number_from_landing_page(decode_hafez_payload(landing.content))
             numbers = [preferred] if preferred else []
             while len(numbers) < 4:
                 candidate = secrets.randbelow(HAFEZ_GHAZAL_COUNT) + 1
@@ -103,7 +133,7 @@ async def get_hafez_fortune() -> HafezFortune:
                 response.raise_for_status()
                 if len(response.content) > 256 * 1024:
                     raise ValueError("پاسخ سرویس فال بیش از حد بزرگ است")
-                return parse_hafez_fortune(response.text, number)
+                return parse_hafez_fortune(decode_hafez_payload(response.content), number)
     except httpx.HTTPError as exc:
         raise ValueError("سرویس فال حافظ موقتاً در دسترس نیست") from exc
     raise ValueError("فال معتبری از سرویس دریافت نشد")
@@ -139,3 +169,4 @@ async def download_hafez_audio(number: int, destination: Path, maximum: int) -> 
         destination.unlink(missing_ok=True)
         raise ValueError("فایل صوتی این غزل خالی است")
     return destination
+
